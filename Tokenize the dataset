@@ -1,0 +1,38 @@
+# Tokenize the dataset
+def tokenize_function(examples):
+    formatted_texts = [format_instruction({"instruction": instr, "response": resp})
+                      for instr, resp in zip(examples["instruction"], examples["response"])]
+
+    # Tokenize with padding to max length and truncation
+    tokenized_inputs = tokenizer(
+        formatted_texts,
+        padding="max_length",
+        truncation=True,
+        max_length=512,
+        return_tensors="pt"
+    )
+
+    # Set labels equal to input_ids (for causal language modeling)
+    tokenized_inputs["labels"] = tokenized_inputs["input_ids"].clone()
+
+    return tokenized_inputs
+
+# Process the datasets
+tokenized_train = instruction_dataset.map(
+    tokenize_function,
+    batched=True,
+    remove_columns=instruction_dataset.column_names
+)
+
+# Create a small eval dataset for quick validation
+eval_size = min(500, len(instruction_dataset))
+eval_dataset = instruction_dataset.select(range(eval_size))
+
+tokenized_eval = eval_dataset.map(
+    tokenize_function,
+    batched=True,
+    remove_columns=eval_dataset.column_names
+)
+
+print(f"Tokenized train dataset size: {len(tokenized_train)}")
+print(f"Tokenized evaluation dataset size: {len(tokenized_eval)}")
