@@ -1,0 +1,24 @@
+# Load a new dataset: OASST1 (Open Assistant) dataset
+# This is different from common instruction datasets and contains human-annotated conversations
+dataset = load_dataset("OpenAssistant/oasst1", split="train")
+eval_dataset = load_dataset("OpenAssistant/oasst1", split="validation")
+
+# Filter to get the most helpful, high-quality examples
+# This dataset is structured as a conversation tree, so we'll flatten it to get instruction-response pairs
+
+def filter_high_quality(example):
+    # Check if it has a message and a "rank" score (quality)
+    if "message" in example and "rank" in example:
+        # Higher rank means better response quality
+        return example["rank"] >= 0.8  # Keep only high-quality responses
+    return False
+
+# Sample the dataset to make it manageable
+sample_size = min(25000, len(dataset))
+dataset = dataset.shuffle(seed=42).select(range(sample_size))
+eval_dataset = eval_dataset.shuffle(seed=42).select(range(min(2000, len(eval_dataset))))
+
+print(f"Dataset size: {len(dataset)}")
+print(f"Evaluation dataset size: {len(eval_dataset)}")
+print("Sample data point:")
+print(dataset[0])
