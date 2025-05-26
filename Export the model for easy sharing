@@ -1,0 +1,38 @@
+# Export the model for easy sharing (smaller LoRA weights only)
+from huggingface_hub import notebook_login
+from peft import PeftModel
+
+# Export the fine-tuned model for easy sharing
+# This only saves the small LoRA weights, not the full model
+adapter_path = f"{model_name}-adapter"
+model.save_pretrained(adapter_path)
+
+print(f"LoRA adapter weights saved to {adapter_path}")
+print("To use this model, you'll need both the base model and these adapter weights.")
+print(f"Base model: {model_id}")
+
+# Example code to reload the model:
+print("\nExample code to reload your fine-tuned model:")
+print(f"""
+from transformers import AutoModelForCausalLM, AutoTokenizer
+from peft import PeftModel
+import torch
+
+# Load base model
+base_model = AutoModelForCausalLM.from_pretrained(
+    "{model_id}",
+    torch_dtype=torch.float16,
+    device_map="auto"
+)
+
+# Load adapter weights
+model = PeftModel.from_pretrained(
+    base_model,
+    "{adapter_path}"
+)
+
+# Load tokenizer
+tokenizer = AutoTokenizer.from_pretrained("{model_id}")
+""")
+
+print("Training and evaluation complete!")
