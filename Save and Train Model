@@ -1,0 +1,56 @@
+# Save the trained model
+model_name = "mistral-instruction-tuned-custom"
+trainer.save_model(model_name)
+
+# Test the model with sample instructions
+def generate_response(instruction, max_length=200):
+    """Generate a response from the fine-tuned model."""
+    # Format the input according to the Mistral template
+    if "mistral" in model_id.lower():
+        formatted_input = f"<s>[INST] {instruction} [/INST]"
+    else:
+        # For non-Mistral models, use our custom format
+        formatted_input = f"### Instruction:\n{instruction}\n\n### Response:"
+
+    inputs = tokenizer(formatted_input, return_tensors="pt").to("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Generate response
+    with torch.no_grad():
+        outputs = model.generate(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            max_new_tokens=max_length,
+            temperature=0.7,
+            top_p=0.9,
+            do_sample=True
+        )
+
+    # Decode the response
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    # Clean up the response based on model type
+    if "mistral" in model_id.lower():
+        # Extract only the assistant's reply from the Mistral format
+        if "[/INST]" in response:
+            response = response.split("[/INST]", 1)[1].strip()
+    else:
+        # For other models, extract after the response marker
+        if "### Response:" in response:
+            response = response.split("### Response:", 1)[1].strip()
+        else:
+            # Otherwise just return everything after the instruction
+            response = response.replace(formatted_input, "").strip()
+
+    return response
+
+# Test with some sample prompts
+test_prompts = [
+    "Explain the concept of fine-tuning large language models in simple terms.",
+    "Write a short story about a robot learning to understand human emotions.",
+    "What are the key differences between supervised and unsupervised learning?"
+]
+
+for prompt in test_prompts:
+    print(f"Instruction: {prompt}")
+    print(f"Response: {generate_response(prompt)}")
+    print("-" * 80)
