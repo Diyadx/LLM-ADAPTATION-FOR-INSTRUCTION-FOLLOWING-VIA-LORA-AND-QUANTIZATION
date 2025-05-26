@@ -1,0 +1,34 @@
+# Reduce dataset size for faster training
+max_train_samples = 1000  # Reduce this to train on fewer examples
+max_eval_samples = 100
+
+# If datasets are too large, take subsets
+if len(tokenized_train) > max_train_samples:
+    tokenized_train = tokenized_train.select(range(max_train_samples))
+if len(tokenized_eval) > max_eval_samples:
+    tokenized_eval = tokenized_eval.select(range(max_eval_samples))
+
+print(f"Training on {len(tokenized_train)} examples")
+print(f"Evaluating on {len(tokenized_eval)} examples")
+
+
+# Create Trainer
+trainer = transformers.Trainer(
+    model=model,
+    args=training_args,
+    train_dataset=tokenized_train,
+    eval_dataset=tokenized_eval
+)
+
+# Train with try-except to handle interruptions gracefully
+try:
+    trainer.train()
+    print("Training completed successfully!")
+except KeyboardInterrupt:
+    print("Training was interrupted. Saving the current state...")
+    trainer.save_model("interrupted_model")
+    print("Model state saved. You can resume training later.")
+except Exception as e:
+    print(f"An error occurred during training: {e}")
+    trainer.save_model("error_checkpoint")
+    print("Emergency checkpoint saved.")
