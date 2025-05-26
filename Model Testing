@@ -1,0 +1,74 @@
+# Alternative way to examine available tasks in lm-eval
+from lm_eval import tasks
+
+# Try accessing tasks through the registry
+try:
+    # Try to get the registry
+    task_registry = tasks.get_task_registry()
+    print("Available tasks in lm-eval:")
+    for task_name in task_registry.keys():
+        print(f"- {task_name}")
+except Exception as e:
+    print(f"Could not access task registry: {e}")
+
+# Skip the lm-eval tool and use our own evaluation
+print("\nUsing custom evaluation instead...")
+
+# Define a manual evaluation function for instruction following
+def evaluate_instruction_following(model, tokenizer, num_examples=5):
+    """
+    Evaluates the model's ability to follow instructions on various tasks.
+    """
+    test_instructions = [
+        {
+            "instruction": "Translate this English text to French: 'The sky is blue.'",
+            "expected_contains": ["ciel", "bleu"]  # Key words we expect in the response
+        },
+        {
+            "instruction": "Write a short poem about artificial intelligence.",
+            "expected_contains": ["intelligence", "artificial"]
+        },
+        {
+            "instruction": "Explain the concept of photosynthesis in simple terms.",
+            "expected_contains": ["plants", "light", "energy", "sun"]
+        },
+        {
+            "instruction": "List three benefits of exercise.",
+            "expected_contains": ["health", "strength", "weight", "mental", "stress", "energy"]
+        },
+        {
+            "instruction": "Answer the following multiple choice question. Only respond with the letter of the correct answer (A, B, C, or D).\nWhich of the following is NOT a function of the mitochondria?\nA) ATP production\nB) Protein synthesis\nC) Cellular respiration\nD) Energy conversion",
+            "expected_contains": ["B"]
+        }
+    ]
+
+    # Use only a subset if requested
+    test_instructions = test_instructions[:num_examples]
+
+    results = []
+    for i, test in enumerate(test_instructions):
+        print(f"\nTest {i+1}: {test['instruction'][:50]}...")
+
+        # Generate response
+        response = generate_response(test['instruction'], max_length=100)
+
+        # Check if response contains expected elements
+        contains_expected = any(keyword.lower() in response.lower() for keyword in test['expected_contains'])
+
+        results.append({
+            "instruction": test['instruction'],
+            "response": response,
+            "contains_expected": contains_expected
+        })
+
+        print(f"Response: {response[:100]}...")
+        print(f"Contains expected keywords: {contains_expected}")
+
+    # Calculate success rate
+    success_rate = sum(1 for r in results if r['contains_expected']) / len(results)
+    print(f"\nOverall success rate: {success_rate:.2%}")
+
+    return results, success_rate
+
+# Test the model
+evaluation_results, success_rate = evaluate_instruction_following(model, tokenizer)
