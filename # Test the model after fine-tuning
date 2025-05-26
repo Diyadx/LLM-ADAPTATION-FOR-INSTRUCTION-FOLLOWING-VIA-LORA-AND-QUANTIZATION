@@ -1,0 +1,162 @@
+# Test the model after fine-tuning
+import torch
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import time
+import os
+import glob
+
+# First, let's check what models we actually have available
+def find_model_files(search_paths):
+    """Search for model files in the given paths"""
+    model_paths = []
+
+    for path in search_paths:
+        # Look for model files
+        config_files = glob.glob(f"{path}/**/config.json", recursive=True)
+        for config_file in config_files:
+            model_dir = os.path.dirname(config_file)
+            model_paths.append(model_dir)
+
+    return model_paths
+
+# Places to look for models
+search_paths = ["./results", "./checkpoints", "./models", "."]
+model_paths = find_model_files(search_paths)
+
+print(f"Found {len(model_paths)} potential model directories:")
+for i, path in enumerate(model_paths):
+    print(f"{i+1}. {path}")
+
+# If no models found, use the base model
+if not model_paths:
+    print("No fine-tuned models found. Using a pre-trained model instead.")
+    model_id = "EleutherAI/pythia-410m"  # Use a default model
+
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id,
+        device_map="auto",
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+    )
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    print(f"Loaded pre-trained model: {model_id}")
+else:
+    # Use the first model found (or let user choose)
+    model_path = model_paths[0]
+    print(f"Loading model from: {model_path}")
+
+    try:
+        # Try to load the model and tokenizer
+        model = AutoModelForCausalLM.from_pretrained(
+            model_path,
+            device_map="auto",
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        )
+
+        # Try to load tokenizer from the same path, or fall back to a default
+        try:
+            tokenizer = AutoTokenizer.from_pretrained(model_path)
+        except Exception as e:
+            print(f"Could not load tokenizer from {model_path}: {e}")
+            print("Falling back to default tokenizer")
+            tokenizer = AutoTokenizer.from_pretrained("EleutherAI/pythia-410m")
+
+        print(f"Successfully loaded model and tokenizer")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        print("Falling back to pre-trained model")
+        model_id = "EleutherAI/pythia-410m"
+        model = AutoModelForCausalLM.from_pretrained(
+            model_id,
+            device_map="auto",
+            torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
+        )
+        tokenizer = AutoTokenizer.from_pretrained(model_id)
+        print(f"Loaded pre-trained model: {model_id}")
+
+# Ensure padding token is set
+if tokenizer.pad_token is None:
+    tokenizer.pad_token = tokenizer.eos_token
+
+# Set model to evaluation mode
+model.eval()
+
+# Define generation function
+def generate_response(instruction, max_length=150, temperature=0.7, top_p=0.9):
+    """Generate a response from the model."""
+    # Format the input with a simple instruction template
+    formatted_input = f"### Instruction:\n{instruction}\n\n### Response:"
+
+    # Tokenize input
+    inputs = tokenizer(formatted_input, return_tensors="pt").to(model.device)
+
+    # Record start time
+    start_time = time.time()
+
+    # Generate response
+    with torch.no_grad():
+        outputs = model.generate(
+            input_ids=inputs["input_ids"],
+            attention_mask=inputs["attention_mask"],
+            max_new_tokens=max_length,
+            temperature=temperature,
+            top_p=top_p,
+            do_sample=True
+        )
+
+    # Calculate generation time
+    generation_time = time.time() - start_time
+
+    # Decode the response
+    response = tokenizer.decode(outputs[0], skip_special_tokens=True)
+
+    # Clean the response
+    if "### Response:" in response:
+        response = response.split("### Response:", 1)[1].strip()
+    else:
+        # Just remove the instruction part
+        response = response.replace(formatted_input, "").strip()
+
+    return response, generation_time
+
+# Test with a diverse set of prompts
+test_prompts = [
+    "Explain the concept of fine-tuning large language models in simple terms.",
+    "Write a short story about a robot learning to understand human emotions.",
+    "What are three ways to improve productivity when working from home?",
+    "Compare and contrast supervised and unsupervised learning in machine learning.",
+    "If I have 5 apples and give 2 to my friend, how many do I have left?"
+]
+
+# Run tests and display results
+print("\n" + "="*80)
+print("Testing the model with various prompts:")
+print("="*80 + "\n")
+
+for i, prompt in enumerate(test_prompts):
+    print(f"Test {i+1}: {prompt}")
+    print("-" * 40)
+
+    try:
+        response, gen_time = generate_response(prompt)
+        print(f"Response: {response}")
+        print(f"Generation time: {gen_time:.2f} seconds")
+    except Exception as e:
+        print(f"Error generating response: {e}")
+
+    print("=" * 80 + "\n")
+
+# Interactive testing mode
+print("\nEntering interactive testing mode. Type 'exit' to quit.")
+while True:
+    user_input = input("\nEnter an instruction: ")
+    if user_input.lower() in ["exit", "quit", "q"]:
+        break
+
+    try:
+        response, gen_time = generate_response(user_input)
+        print(f"\nResponse: {response}")
+        print(f"Generation time: {gen_time:.2f} seconds")
+    except Exception as e:
+        print(f"Error generating response: {e}")
+
+print("\nTesting complete.")
