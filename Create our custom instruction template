@@ -1,0 +1,19 @@
+# Create our custom instruction template
+def format_instruction(example):
+    """
+    Format the instruction using our custom template
+    """
+    instruction = example["instruction"].strip()
+    response = example["response"].strip()
+
+    # Custom template with Mistral-style formatting
+    formatted_text = f"""<s>[INST] {instruction} [/INST]
+{response}</s>"""
+
+    return formatted_text
+
+# Process a few examples to verify formatting
+for i in range(min(3, len(instruction_dataset))):
+    print(f"Example {i+1}:")
+    print(format_instruction(instruction_dataset[i]))
+    print("-" * 50)
