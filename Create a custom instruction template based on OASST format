@@ -1,0 +1,43 @@
+# Create a custom instruction template based on OASST format
+def create_conversation_pairs(examples):
+    """Extract instruction-response pairs from the dataset"""
+    instruction_pairs = []
+
+    for i in range(len(examples["text"])):
+        text = examples["text"][i]
+        role = examples["role"][i]
+
+        # Skip if not human or assistant
+        if role not in ["prompter", "assistant"]:
+            continue
+
+        # If this is a human message (prompter)
+        if role == "prompter":
+            # Look ahead to see if the next message is from assistant
+            if i + 1 < len(examples["role"]) and examples["role"][i + 1] == "assistant":
+                instruction = text
+                response = examples["text"][i + 1]
+
+                # Add to our list
+                instruction_pairs.append({
+                    "instruction": instruction,
+                    "response": response
+                })
+
+    return instruction_pairs
+
+# Process the dataset to get instruction-response pairs
+conversation_pairs = []
+for i in range(0, len(dataset), 100):  # Process in batches
+    batch = dataset.select(range(i, min(i+100, len(dataset))))
+    pairs = create_conversation_pairs(batch)
+    conversation_pairs.extend(pairs)
+
+# Convert back to dataset format
+from datasets import Dataset
+instruction_dataset = Dataset.from_list(conversation_pairs)
+
+print(f"Extracted {len(instruction_dataset)} instruction-response pairs")
+print("Sample instruction-response pair:")
+if len(instruction_dataset) > 0:
+    print(instruction_dataset[0])
